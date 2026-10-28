@@ -45,7 +45,10 @@ Claude Code agent in the TTS repo does better.
 
 ## Install on a Raspberry Pi Zero
 
-Prebuilt binaries are made with `make pi`:
+**Cloned the repo on the Pi?** Follow the step-by-step guide in [PI_ZERO.md](PI_ZERO.md): install Go,
+build, and run as a service.
+
+Or build on your computer and copy the binary over. Binaries are made with `make pi`:
 
 | Board | OS | Binary |
 |---|---|---|
