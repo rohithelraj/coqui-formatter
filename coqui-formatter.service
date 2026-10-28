@@ -1,0 +1,19 @@
+# systemd unit for coqui-formatter. See README.md ("Run on boot").
+# Adjust User, the binary path and the -tts URL, then copy to /etc/systemd/system/.
+[Unit]
+Description=coqui-formatter (markdown to Book Markdown converter)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+ExecStart=/usr/local/bin/coqui-formatter -addr :8080 -tts http://tts-pi.local:5002
+Restart=on-failure
+RestartSec=5
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

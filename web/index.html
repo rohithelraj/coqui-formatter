@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>coqui-formatter</title>
+  <style>
+    :root {
+      --fg: #1d2330;
+      --muted: #667085;
+      --bg: #f7f8fa;
+      --card: #fff;
+      --line: #d9dde3;
+      --accent: #2f6fde;
+      --warn: #b54708;
+      --bad: #b42318;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e6e8eb;
+        --muted: #98a2b3;
+        --bg: #14171c;
+        --card: #1d2128;
+        --line: #343a45;
+        --accent: #6c9cff;
+        --warn: #fdb022;
+        --bad: #f97066;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font: 15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: var(--fg);
+      background: var(--bg);
+    }
+
+    header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    header h1 {
+      font-size: 18px;
+      margin: 0;
+    }
+
+    header span {
+      color: var(--muted);
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      padding: 16px 20px;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    h2 {
+      font-size: 15px;
+      margin: 0;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 55vh;
+      resize: vertical;
+      font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--fg);
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button,
+    select,
+    input[type=text] {
+      font: inherit;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--fg);
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: default;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    #drop {
+      border: 2px dashed var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    #drop.over {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 13px;
+    }
+
+    td,
+    th {
+      text-align: left;
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    .warn {
+      color: var(--warn);
+    }
+
+    .bad {
+      color: var(--bad);
+    }
+
+    #report:empty {
+      display: none;
+    }
+
+    #message:empty {
+      display: none;
+    }
+
+    code {
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>🐸 coqui-formatter</h1>
+    <span>Turn any markdown into Book Markdown for the coqui TTS audiobook server</span>
+  </header>
+
+  <main>
+    <section>
+      <h2>1. Your markdown</h2>
+      <div id="drop">Drop a <code>.md</code> file here, or
+        <label style="color:var(--accent);cursor:pointer">choose one<input type="file" id="file"
+            accept=".md,.markdown,.txt" hidden></label>, or paste below
+      </div>
+      <textarea id="input" placeholder="# Chapter 1&#10;&#10;&quot;Do you hear that?&quot; Alice asked.&#10;&#10;&quot;It's only the sea,&quot; said Tom."></textarea>
+      <div class="row">
+        <label>Narrator <select id="narrator"></select></label>
+        <input type="text" id="title" placeholder="Title (optional)">
+        <button class="primary" id="convert">Convert →</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>2. Book Markdown</h2>
+      <div id="report"></div>
+      <textarea id="output" placeholder="The converted book appears here. You can edit it before downloading."></textarea>
+      <div class="row">
+        <button id="download" disabled>Download</button>
+        <button id="copy" disabled>Copy</button>
+        <button id="send" hidden disabled>Send to TTS server</button>
+        <span id="message" class="muted"></span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const q = s => document.querySelector(s)
+    let filename = 'book.book.md'
+    let sourceName = ''
+    let config = {}
+
+    function el(tag, text, cls) {
+      const n = document.createElement(tag)
+      if (text !== undefined) n.textContent = text
+      if (cls) n.className = cls
+      return n
+    }
+
+    async function loadConfig() {
+      config = await (await fetch('/api/config')).json()
+      const sel = q('#narrator')
+      const add = (label, ids) => {
+        const g = document.createElement('optgroup')
+        g.label = label
+        ids.forEach(id => g.append(new Option(id, id)))
+        sel.append(g)
+      }
+      add('Default', [config.narrator])
+      add('Female', config.female)
+      add('Male', config.male)
+      if (config.tts) {
+        q('#send').hidden = false
+        q('#send').title = 'Queue on ' + config.tts
+      }
+    }
+
+    function readFile(file) {
+      sourceName = file.name
+      const reader = new FileReader()
+      reader.onload = () => { q('#input').value = reader.result; convert() }
+      reader.readAsText(file)
+    }
+
+    q('#file').addEventListener('change', e => e.target.files[0] && readFile(e.target.files[0]))
+    const drop = q('#drop')
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over') })
+    drop.addEventListener('dragleave', () => drop.classList.remove('over'))
+    drop.addEventListener('drop', e => {
+      e.preventDefault()
+      drop.classList.remove('over')
+      if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0])
+    })
+
+    async function convert() {
+      const text = q('#input').value
+      if (!text.trim()) return
+      const data = new FormData()
+      data.append('text', text)
+      data.append('name', sourceName || 'book.md')
+      data.append('narrator', q('#narrator').value)
+      data.append('title', q('#title').value)
+      q('#convert').disabled = true
+      try {
+        const res = await fetch('/api/convert', { method: 'POST', body: data })
+        const body = await res.json()
+        if (!res.ok) throw Error(body.error)
+        q('#output').value = body.markdown
+        filename = body.filename
+        showReport(body.report)
+        for (const id of ['#download', '#copy', '#send']) q(id).disabled = false
+        q('#message').textContent = ''
+      } catch (err) {
+        q('#message').textContent = 'Error: ' + err.message
+      } finally {
+        q('#convert').disabled = false
+      }
+    }
+
+    function showReport(r) {
+      const box = q('#report')
+      box.replaceChildren()
+      box.append(el('div', `${r.title}: ${r.words} words, about ${Math.max(1, Math.round(r.words / 150))} min of audio`, 'muted'))
+      if (r.characters.length) {
+        const t = el('table')
+        const head = el('tr')
+        for (const h of ['Character', 'Voice', 'Gender', 'Lines']) head.append(el('th', h))
+        t.append(head)
+        for (const c of r.characters) {
+          const tr = el('tr')
+          tr.append(el('td', c.name), el('td', c.voice), el('td', c.gender || '?'), el('td', c.lines))
+          t.append(tr)
+        }
+        box.append(t)
+      }
+      for (const w of r.warnings) box.append(el('div', '⚠ ' + w, 'warn'))
+      if (r.guesses.length) {
+        const details = el('details')
+        details.open = r.guesses.length <= 8
+        details.append(el('summary', `Check ${r.guesses.length} guessed line(s)`))
+        const t = el('table')
+        for (const g of r.guesses) {
+          const tr = el('tr')
+          tr.append(el('td', 'line ' + g.line, 'muted'), el('td', g.speaker || 'narration', g.speaker ? '' : 'bad'),
+            el('td', g.reason, 'muted'), el('td', '“' + g.text + '”'))
+          t.append(tr)
+        }
+        details.append(t)
+        box.append(details)
+      }
+    }
+
+    q('#convert').addEventListener('click', convert)
+    q('#input').addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') convert()
+    })
+    q('#narrator').addEventListener('change', () => q('#output').value && convert())
+
+    q('#download').addEventListener('click', () => {
+      const blob = new Blob([q('#output').value], { type: 'text/markdown' })
+      const a = el('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(a.href)
+    })
+
+    q('#copy').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(q('#output').value)
+        q('#message').textContent = 'Copied.'
+      } catch {
+        // clipboard API needs https or localhost; fall back to selecting the text
+        q('#output').select()
+        document.execCommand('copy')
+        q('#message').textContent = 'Copied.'
+      }
+    })
+
+    q('#send').addEventListener('click', async () => {
+      const data = new FormData()
+      data.append('text', q('#output').value)
+      data.append('name', filename)
+      q('#send').disabled = true
+      q('#message').textContent = 'Sending...'
+      try {
+        const res = await fetch('/api/send', { method: 'POST', body: data })
+        const body = await res.json()
+        if (!res.ok) throw Error(body.error)
+        q('#message').replaceChildren('Queued as job ' + body.id + ' · ')
+        const link = el('a', 'open TTS server')
+        link.href = config.tts + '/book'
+        link.target = '_blank'
+        q('#message').append(link)
+      } catch (err) {
+        q('#message').textContent = 'Error: ' + err.message
+      } finally {
+        q('#send').disabled = false
+      }
+    })
+
+    loadConfig()
+  </script>
+</body>
+
+</html>
